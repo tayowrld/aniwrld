@@ -1,0 +1,36 @@
+services:
+  aniwrld:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${ANIWRLD_PORT:-8787}:8787"
+    environment:
+      ANIWRLD_DB_PATH: /app/data/aniwrld.sqlite
+      ANIWRLD_LIBRARY_PATH: /media
+      ANIWRLD_MEDIA_ENGINE_URL: http://media-engine:8096
+    volumes:
+      - aniwrld-data:/app/data
+      - type: bind
+        source: ${ANIWRLD_MEDIA_PATH}
+        target: /media
+        read_only: true
+    depends_on:
+      - media-engine
+
+  media-engine:
+    image: jellyfin/jellyfin:10.11.11
+    restart: unless-stopped
+    expose:
+      - "8096"
+    volumes:
+      - media-engine-config:/config
+      - media-engine-cache:/cache
+      - type: bind
+        source: ${ANIWRLD_MEDIA_PATH}
+        target: /media
+        read_only: true
+
+volumes:
+  aniwrld-data:
+  media-engine-config:
+  media-engine-cache:
