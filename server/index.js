@@ -21,7 +21,7 @@ async function body(request) {
   let value = "";
   for await (const chunk of request) {
     value += chunk;
-    if (value.length > 100_000) throw new Error("Слишком большой запрос.");
+    if (value.length > 100_000) throw new Error("Request body is too large.");
   }
   return value ? JSON.parse(value) : {};
 }
@@ -33,8 +33,8 @@ function publicState() {
 
 function validateCredentials(username, password) {
   const clean = String(username || "").trim();
-  if (!/^[\p{L}\p{N}_.-]{3,32}$/u.test(clean)) throw new Error("Имя: 3–32 символа, буквы, цифры, точка, дефис или подчёркивание.");
-  if (String(password || "").length < 8) throw new Error("Пароль должен содержать минимум 8 символов.");
+  if (!/^[\p{L}\p{N}_.-]{3,32}$/u.test(clean)) throw new Error("Username must be 3-32 characters: letters, numbers, dot, dash, or underscore.");
+  if (String(password || "").length < 8) throw new Error("Password must be at least 8 characters.");
   return clean;
 }
 
@@ -46,7 +46,7 @@ async function api(request, response, url) {
     try {
       const data = await body(request);
       const state = publicState();
-      if (!state.setupRequired && !state.registrationEnabled) return json(response, 403, { error: "Регистрация отключена администратором." });
+      if (!state.setupRequired && !state.registrationEnabled) return json(response, 403, { error: "Registration is disabled by the administrator." });
       const username = validateCredentials(data.username, data.password);
       const role = state.setupRequired ? "admin" : "user";
       const result = db.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)").run(username, hashPassword(data.password), role);
@@ -54,14 +54,14 @@ async function api(request, response, url) {
       const session = createSession(created.id);
       return json(response, 201, { user: created }, { "Set-Cookie": sessionCookie(session.token, session.expires) });
     } catch (error) {
-      return json(response, String(error.message).includes("UNIQUE") ? 409 : 400, { error: String(error.message).includes("UNIQUE") ? "Это имя уже занято." : error.message });
+      return json(response, String(error.message).includes("UNIQUE") ? 409 : 400, { error: String(error.message).includes("UNIQUE") ? "This username is already taken." : error.message });
     }
   }
 
   if (request.method === "POST" && url.pathname === "/api/auth/login") {
     const data = await body(request);
     const found = db.prepare("SELECT id, username, role, password_hash FROM users WHERE username = ?").get(String(data.username || "").trim());
-    if (!found || !verifyPassword(String(data.password || ""), found.password_hash)) return json(response, 401, { error: "Неверное имя пользователя или пароль." });
+    if (!found || !verifyPassword(String(data.password || ""), found.password_hash)) return json(response, 401, { error: "Invalid username or password." });
     const session = createSession(found.id);
     return json(response, 200, { user: { id: found.id, username: found.username, role: found.role } }, { "Set-Cookie": sessionCookie(session.token, session.expires) });
   }
@@ -71,35 +71,35 @@ async function api(request, response, url) {
     return json(response, 200, { ok: true }, { "Set-Cookie": expiredCookie() });
   }
 
-  if (!user) return json(response, 401, { error: "Требуется авторизация." });
+  if (!user) return json(response, 401, { error: "Authentication required." });
 
   if (request.method === "GET" && url.pathname === "/api/settings") {
     return json(response, 200, { registrationEnabled: getSetting("registration_enabled") === "true", media: mediaState() });
   }
   if (request.method === "PATCH" && url.pathname === "/api/settings/registration") {
-    if (user.role !== "admin") return json(response, 403, { error: "Требуются права администратора." });
+    if (user.role !== "admin") return json(response, 403, { error: "Administrator access required." });
     const data = await body(request);
     setSetting("registration_enabled", Boolean(data.enabled));
     return json(response, 200, { registrationEnabled: Boolean(data.enabled) });
   }
   if (request.method === "GET" && url.pathname === "/api/admin/users") {
-    if (user.role !== "admin") return json(response, 403, { error: "Требуются права администратора." });
+    if (user.role !== "admin") return json(response, 403, { error: "Administrator access required." });
     return json(response, 200, { users: db.prepare("SELECT id, username, role, created_at AS createdAt FROM users ORDER BY id").all() });
   }
   if (request.method === "GET" && url.pathname === "/api/admin/directories") {
-    if (user.role !== "admin") return json(response, 403, { error: "Требуются права администратора." });
+    if (user.role !== "admin") return json(response, 403, { error: "Administrator access required." });
     const path = resolve(url.searchParams.get("path") || homedir());
-    if (!existsSync(path) || !statSync(path).isDirectory()) return json(response, 400, { error: "Папка недоступна." });
+    if (!existsSync(path) || !statSync(path).isDirectory()) return json(response, 400, { error: "Folder is unavailable." });
     const directories = readdirSync(path, { withFileTypes: true }).filter((entry) => entry.isDirectory() && !entry.name.startsWith(".")).map((entry) => ({ name: entry.name, path: join(path, entry.name) })).sort((a, b) => a.name.localeCompare(b.name));
     return json(response, 200, { path, parent: dirname(path), directories });
   }
   if (request.method === "POST" && url.pathname === "/api/media/setup") {
-    if (user.role !== "admin") return json(response, 403, { error: "Требуются права администратора." });
+    if (user.role !== "admin") return json(response, 403, { error: "Administrator access required." });
     const data = await body(request);
     return json(response, 200, { media: await configureMediaOwner(user.username, data.libraryPath) });
   }
   if (request.method === "GET" && url.pathname === "/api/media/status") return json(response, 200, mediaState());
-  if (!mediaState().configured && url.pathname.startsWith("/api/media/")) return json(response, 409, { error: "Медиатека ещё не настроена." });
+  if (!mediaState().configured && url.pathname.startsWith("/api/media/")) return json(response, 409, { error: "The media library is not configured yet." });
   if (request.method === "GET" && url.pathname === "/api/media/library") return json(response, 200, { items: await getLibrary() });
   if (request.method === "GET" && url.pathname === "/api/media/resume") return json(response, 200, { items: await getResume() });
   if (request.method === "GET" && url.pathname.startsWith("/api/media/series/") && url.pathname.endsWith("/episodes")) {
@@ -132,7 +132,7 @@ async function api(request, response, url) {
     const upstream = await proxyAbsolute(url.searchParams.get("url") || "");
     return upstream.headers.get("content-type")?.includes("mpegurl") ? playlist(response, upstream) : pipeUpstream(response, upstream);
   }
-  return json(response, 404, { error: "Маршрут не найден." });
+  return json(response, 404, { error: "Route not found." });
 }
 
 async function playlist(response, upstream) {
@@ -156,7 +156,7 @@ function serveStatic(response, pathname) {
   const safePath = pathname.replace(/^\/+/, "").replace(/\.\.(\/|\\)/g, "");
   const requested = pathname === "/" ? join(dist, "index.html") : join(dist, safePath);
   const file = existsSync(requested) && statSync(requested).isFile() ? requested : join(dist, "index.html");
-  if (!existsSync(file)) return json(response, 404, { error: "Сначала выполните npm run build." });
+  if (!existsSync(file)) return json(response, 404, { error: "Run npm run build first." });
   response.writeHead(200, { "Content-Type": mime[extname(file)] || "application/octet-stream" });
   createReadStream(file).pipe(response);
 }
@@ -167,7 +167,7 @@ createServer(async (request, response) => {
     if (url.pathname.startsWith("/api/")) return await api(request, response, url);
     return serveStatic(response, url.pathname);
   } catch (error) {
-    return json(response, 500, { error: error.message || "Внутренняя ошибка." });
+    return json(response, 500, { error: error.message || "Internal error." });
   }
 }).listen(port, host, () => console.log(`AniWRLD server: http://${host}:${port}`));
 

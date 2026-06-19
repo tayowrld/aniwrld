@@ -66,14 +66,14 @@ function LibrarySetup({ onConfigured, deploymentPath }) {
   };
   return <div className="connect-screen"><div className="ambient ambient--one" /><div className="ambient ambient--two" />
     <form className="connect-card library-setup" onSubmit={submit}>
-      <span className="logo__mark"><HardDrive /></span><p className="eyebrow eyebrow--accent">Последний шаг</p>
-      <h1>Выберите папку<br /><em>со всеми релизами.</em></h1>
-      <p>Подойдёт локальная или смонтированная облачная папка. Индексация, обложки и обновления дальше работают автоматически.</p>
-      {deploymentPath ? <div className="media-summary"><HardDrive /><span><strong>Папка подключена при развёртывании</strong><small>{deploymentPath}</small></span></div> : <div className="folder-browser"><button type="button" className="folder-current" onClick={() => open(browser?.parent)} disabled={!browser}><FolderOpen />{browser?.path || "Загрузка..."}</button>
+      <span className="logo__mark"><HardDrive /></span><p className="eyebrow eyebrow--accent">Final step</p>
+      <h1>Choose the folder<br /><em>with your releases.</em></h1>
+      <p>Use a local or mounted media folder. Indexing, artwork, and updates will run automatically after setup.</p>
+      {deploymentPath ? <div className="media-summary"><HardDrive /><span><strong>Media folder mounted by deployment</strong><small>{deploymentPath}</small></span></div> : <div className="folder-browser"><button type="button" className="folder-current" onClick={() => open(browser?.parent)} disabled={!browser}><FolderOpen />{browser?.path || "Loading..."}</button>
         <div>{browser?.directories.map((entry) => <button type="button" key={entry.path} className={selected === entry.path ? "active" : ""} onClick={() => setSelected(entry.path)} onDoubleClick={() => open(entry.path)}><Folder />{entry.name}</button>)}</div>
       </div>}
       {error && <div className="form-error">{error}</div>}
-      <button className="primary-button connect-button" disabled={busy || (!deploymentPath && !selected && !browser?.path)}>{busy ? <RefreshCw className="spin" /> : <Sparkles />}Подготовить медиатеку</button>
+      <button className="primary-button connect-button" disabled={busy || (!deploymentPath && !selected && !browser?.path)}>{busy ? <RefreshCw className="spin" /> : <Sparkles />}Prepare library</button>
     </form></div>;
 }
 
@@ -94,14 +94,14 @@ function AuthScreen({ state, onAuthenticated }) {
   };
   return <div className="connect-screen"><div className="ambient ambient--one" /><div className="ambient ambient--two" />
     <form className="connect-card" onSubmit={submit}><span className="logo__mark">{state.setupRequired ? <Shield /> : register ? <UserPlus /> : <Sparkles />}</span>
-      <p className="eyebrow eyebrow--accent">{state.setupRequired ? "Первый запуск" : register ? "Новый аккаунт" : "Добро пожаловать"}</p>
-      <h1>{state.setupRequired ? <>Создайте аккаунт<br /><em>администратора.</em></> : register ? <>Создайте свой<br /><em>аккаунт.</em></> : <>Войдите в свой<br /><em>мир аниме.</em></>}</h1>
-      <p>{state.setupRequired ? "Первый аккаунт обязателен и получит полные права управления AniWRLD." : "Ваша библиотека и настройки доступны только после входа."}</p>
-      <label>Имя пользователя<input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" required /></label>
-      <label>Пароль<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete={register ? "new-password" : "current-password"} required /></label>
+      <p className="eyebrow eyebrow--accent">{state.setupRequired ? "First run" : register ? "New account" : "Welcome back"}</p>
+      <h1>{state.setupRequired ? <>Create an<br /><em>admin account.</em></> : register ? <>Create your<br /><em>account.</em></> : <>Enter your<br /><em>anime library.</em></>}</h1>
+      <p>{state.setupRequired ? "The first account is required and receives full AniWRLD admin access." : "Your library and settings are available after sign in."}</p>
+      <label>Username<input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" required /></label>
+      <label>Password<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete={register ? "new-password" : "current-password"} required /></label>
       {error && <div className="form-error">{error}</div>}
-      <button className="primary-button connect-button" disabled={busy}>{busy ? <RefreshCw className="spin" /> : register ? <UserPlus /> : <Sparkles />}{register ? "Создать аккаунт" : "Войти"}</button>
-      {!state.setupRequired && state.registrationEnabled && <button className="demo-button" type="button" onClick={() => { setMode(register ? "login" : "register"); setError(""); }}>{register ? "У меня уже есть аккаунт" : "Зарегистрироваться"}</button>}
+      <button className="primary-button connect-button" disabled={busy}>{busy ? <RefreshCw className="spin" /> : register ? <UserPlus /> : <Sparkles />}{register ? "Create account" : "Sign in"}</button>
+      {!state.setupRequired && state.registrationEnabled && <button className="demo-button" type="button" onClick={() => { setMode(register ? "login" : "register"); setError(""); }}>{register ? "I already have an account" : "Create an account"}</button>}
     </form>
   </div>;
 }
@@ -118,10 +118,10 @@ function AdminSettings({ onClose, media }) {
     catch (toggleError) { setError(toggleError.message); }
   };
   return <div className="modal-backdrop" onClick={onClose}><div className="admin-panel" onClick={(event) => event.stopPropagation()}>
-    <button className="modal__close" onClick={onClose}><X /></button><p className="eyebrow eyebrow--accent">Администрирование</p><h2>Доступ к AniWRLD</h2>
-    <button className="setting-row" onClick={toggle}><span><strong>Открытая регистрация</strong><small>Разрешить новым пользователям создавать аккаунты</small></span><i className={enabled ? "active" : ""}><b /></i></button>
-    <div className="media-summary"><HardDrive /><span><strong>Источник медиатеки</strong><small>{media.libraryPath || "Не настроен"} · {media.status === "ready" ? "актуальна" : "идёт индексация"}</small></span></div>
-    <p className="eyebrow">Пользователи · {users.length}</p><div className="user-list">{users.map((user) => <div key={user.id}><span className="profile__avatar">{user.username.slice(0, 2).toUpperCase()}</span><strong>{user.username}</strong><small>{user.role === "admin" ? "Администратор" : "Пользователь"}</small></div>)}</div>
+    <button className="modal__close" onClick={onClose}><X /></button><p className="eyebrow eyebrow--accent">Administration</p><h2>AniWRLD access</h2>
+    <button className="setting-row" onClick={toggle}><span><strong>Open registration</strong><small>Allow new users to create accounts</small></span><i className={enabled ? "active" : ""}><b /></i></button>
+    <div className="media-summary"><HardDrive /><span><strong>Media source</strong><small>{media.libraryPath || "Not configured"} · {media.status === "ready" ? "up to date" : "indexing"}</small></span></div>
+    <p className="eyebrow">Users · {users.length}</p><div className="user-list">{users.map((user) => <div key={user.id}><span className="profile__avatar">{user.username.slice(0, 2).toUpperCase()}</span><strong>{user.username}</strong><small>{user.role === "admin" ? "Administrator" : "User"}</small></div>)}</div>
     {error && <div className="form-error">{error}</div>}
   </div></div>;
 }
@@ -173,25 +173,25 @@ function DetailsModal({ show, onClose, onPlay, onToggleFavorite, busy }) {
       <p>{show.desc}</p>
       <div className="modal__meta">
         {show.rating && <span><Star fill="currentColor" />{show.rating}</span>}
-        <span>{show.year || "Без года"}</span>
+        <span>{show.year || "No year"}</span>
         <span>{show.meta}</span>
       </div>
       <div className="modal__actions">
         <button className="primary-button" onClick={() => onPlay(primaryAction)} disabled={busy}>
-          <Play fill="currentColor" />{show.progress ? "Продолжить просмотр" : "Смотреть"}
+          <Play fill="currentColor" />{show.progress ? "Resume" : "Watch"}
         </button>
         <button className="glass-button" onClick={() => onToggleFavorite(show)}>
-          <Heart fill={show.favorite ? "currentColor" : "none"} />{show.favorite ? "В избранном" : "В избранное"}
+          <Heart fill={show.favorite ? "currentColor" : "none"} />{show.favorite ? "Favorited" : "Add to favorites"}
         </button>
       </div>
       {show.type === "Series" && <div className="episode-panel">
         <div className="episode-panel__header">
-          <strong>Эпизоды</strong>
+          <strong>Episodes</strong>
           {seasons.length > 1 && <div className="genre-scroll episode-panel__seasons">
-            {seasons.map((value) => <button key={value} className={season === String(value) ? "active" : ""} onClick={() => setSeason(String(value))}>Сезон {value}</button>)}
+            {seasons.map((value) => <button key={value} className={season === String(value) ? "active" : ""} onClick={() => setSeason(String(value))}>Season {value}</button>)}
           </div>}
         </div>
-        {loading && <div className="episode-panel__state"><RefreshCw className="spin" />Загружаем список серий...</div>}
+        {loading && <div className="episode-panel__state"><RefreshCw className="spin" />Loading episodes...</div>}
         {!loading && error && <div className="form-error">{error}</div>}
         {!loading && !error && <div className="episode-list">
           {visibleEpisodes.map((episode) => <button key={episode.id} className="episode-row" onClick={() => onPlay(episode)}>
@@ -203,7 +203,7 @@ function DetailsModal({ show, onClose, onPlay, onToggleFavorite, busy }) {
             {episode.progress > 0 && <span className="episode-row__progress">{episode.progress}%</span>}
             {episode.progress > 0 && <span className="episode-row__bar"><i style={{ width: `${episode.progress}%` }} /></span>}
           </button>)}
-          {!visibleEpisodes.length && <div className="episode-panel__state">Для этого сезона эпизоды не найдены.</div>}
+          {!visibleEpisodes.length && <div className="episode-panel__state">No episodes found for this season.</div>}
         </div>}
       </div>}
     </div>
@@ -279,7 +279,7 @@ function Player({ playback, onClose, onPlay }) {
         if (Hls.isSupported()) {
           hls = new Hls({ enableWorker: true });
           hls.on(Hls.Events.ERROR, (_, data) => {
-            if (data?.fatal) setPlayerError("Поток не удалось открыть. Попробуйте другую серию или обновите библиотеку.");
+            if (data?.fatal) setPlayerError("Could not open the stream. Try another episode or refresh the library.");
           });
           hls.loadSource(playback.hlsUrl);
           hls.attachMedia(video);
@@ -327,7 +327,7 @@ function Player({ playback, onClose, onPlay }) {
         nextPromptTimer.current = setTimeout(() => setNextPrompt(false), 15000);
       }
     };
-    const fail = () => setPlayerError("Браузер не смог загрузить видеофайл.");
+    const fail = () => setPlayerError("The browser could not load this video file.");
     const pause = () => report("progress");
     video.addEventListener("loadedmetadata", start, { once: true });
     video.addEventListener("timeupdate", progress);
@@ -357,12 +357,12 @@ function Player({ playback, onClose, onPlay }) {
     <video ref={videoRef} autoPlay playsInline>
       {playback.subtitles?.map((track) => <track key={track.src} kind="subtitles" src={track.src} srcLang={track.language} label={track.label} />)}
     </video>
-    {nextPrompt && nextEpisode && <button className="player-next-toast" onClick={() => switchEpisode(nextEpisode)}><span>Следующая серия</span><strong>{nextEpisode.title}</strong></button>}
+    {nextPrompt && nextEpisode && <button className="player-next-toast" onClick={() => switchEpisode(nextEpisode)}><span>Next episode</span><strong>{nextEpisode.title}</strong></button>}
     {playerError && <div className="banner banner--error player__error">{playerError}</div>}
     <div className="player__caption"><strong>{playback.item.seriesTitle || playback.item.title}</strong><span>{playback.item.seriesTitle ? `${playback.item.title} · ${playback.item.meta}` : playback.item.meta}</span></div>
   </div>
     {episodes.length > 0 && <aside className="player-episodes">
-      <div className="player-episodes__head"><span>Эпизоды</span>{nextEpisode && <button onClick={() => switchEpisode(nextEpisode)}>Следующая</button>}</div>
+      <div className="player-episodes__head"><span>Episodes</span>{nextEpisode && <button onClick={() => switchEpisode(nextEpisode)}>Next</button>}</div>
       <div className="player-episodes__list">
         {episodes.map((episode) => <button key={episode.id} className={episode.id === playback.item.id ? "active" : ""} onClick={() => switchEpisode(episode)}>
           <span>{episode.episodeNumber || "?"}</span><strong>{episode.title}</strong><small>{episode.meta}</small>
@@ -380,7 +380,7 @@ function App({ account, media, onAccountLogout }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [genre, setGenre] = useState("Все");
+  const [genre, setGenre] = useState("All");
   const [view, setView] = useState("grid");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [hideWatched, setHideWatched] = useState(false);
@@ -400,7 +400,7 @@ function App({ account, media, onAccountLogout }) {
       setResume(mergeCookieFavorites(continueItems, account));
       setError("");
     } catch (loadError) {
-      setError(`Не удалось загрузить библиотеку: ${loadError.message}`);
+      setError(`Could not load library: ${loadError.message}`);
     } finally { setLoading(false); }
   };
 
@@ -420,24 +420,27 @@ function App({ account, media, onAccountLogout }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const genres = useMemo(() => ["Все", ...new Set(shows.flatMap((show) => show.genres?.length ? show.genres : [show.genre]))], [shows]);
+  const genres = useMemo(() => ["All", ...new Set(shows.flatMap((show) => show.genres?.length ? show.genres : [show.genre]))], [shows]);
   const filtered = useMemo(() => shows.filter((show) => {
     const inCollection = collection === "favorites" ? show.favorite : collection === "watched" ? show.played : true;
     const watchedAllowed = !hideWatched || !show.played;
-    return inCollection && watchedAllowed && (genre === "Все" || show.genres?.includes(genre) || show.genre === genre) && show.title.toLowerCase().includes(query.toLowerCase());
+    return inCollection && watchedAllowed && (genre === "All" || show.genres?.includes(genre) || show.genre === genre) && show.title.toLowerCase().includes(query.toLowerCase());
   }), [shows, genre, query, collection, hideWatched]);
   const favorites = shows.filter((show) => show.favorite).length;
   const watched = shows.filter((show) => show.played).length;
   const heroShow = resume[0] || shows[0] || null;
   const activeTheme = themes.find((item) => item.id === theme) || themes[0];
-  const collectionTitle = collection === "favorites" ? "Избранное" : collection === "watched" ? "Просмотрено" : "Все аниме";
+  const collectionTitle = collection === "favorites" ? "Favorites" : collection === "watched" ? "Watched" : "All anime";
+  const heroTitle = heroShow?.seriesTitle || heroShow?.title || "";
+  const heroOriginal = heroShow?.originalTitle && heroShow.originalTitle !== heroTitle ? heroShow.originalTitle : "";
+  const heroIsPortraitArt = Boolean(heroShow?.metadata?.provider === "jikan" && heroShow?.backdrop && heroShow.backdrop === heroShow.image);
   const chooseCollection = (nextCollection) => {
     setCollection(nextCollection);
     setMenuOpen(false);
   };
   const scrollToCollection = () => document.getElementById("collection")?.scrollIntoView({ behavior: "smooth", block: "start" });
   const resetFilters = () => {
-    setGenre("Все");
+    setGenre("All");
     setQuery("");
     setHideWatched(false);
     setCollection("all");
@@ -463,45 +466,45 @@ function App({ account, media, onAccountLogout }) {
     } catch (playError) { setError(playError.message); }
     finally { setBusy(false); }
   };
-  if (loading && !shows.length) return <div className="loading-screen"><span className="logo__mark"><Sparkles /></span><RefreshCw className="spin" /><p>Обновляем медиатеку...</p></div>;
+  if (loading && !shows.length) return <div className="loading-screen"><span className="logo__mark"><Sparkles /></span><RefreshCw className="spin" /><p>Refreshing library...</p></div>;
 
   return <div className="app-shell">
     <div className="particles"><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /></div>
     <div className="ambient ambient--one" /><div className="ambient ambient--two" />
-    {menuOpen && <button className="sidebar-scrim" aria-label="Закрыть меню" onClick={() => setMenuOpen(false)} />}
+    {menuOpen && <button className="sidebar-scrim" aria-label="Close menu" onClick={() => setMenuOpen(false)} />}
     <aside className={`sidebar ${menuOpen ? "sidebar--open" : ""}`}>
       <button className="mobile-close" onClick={() => setMenuOpen(false)}><X /></button>
       <a className="logo" href="#"><span className="logo__mark"><Sparkles size={17} /></span><span>ani<span>wrld</span></span></a>
-      <nav className="nav"><p className="eyebrow">Смотреть</p>
-        <button className={`nav__item ${collection === "all" ? "nav__item--active" : ""}`} onClick={() => chooseCollection("all")}><Library />Библиотека<span className="nav__count">{shows.length}</span></button>
-        <a className="nav__item" href="#continue" onClick={() => setMenuOpen(false)}><Play />Продолжить{resume.length > 0 && <span className="nav__dot" />}</a>
-        <button className={`nav__item ${collection === "favorites" ? "nav__item--active" : ""}`} onClick={() => chooseCollection("favorites")}><Heart />Избранное<span className="nav__count">{favorites}</span></button>
-        <p className="eyebrow">Коллекции</p><button className={`nav__item ${collection === "watched" ? "nav__item--active" : ""}`} onClick={() => chooseCollection("watched")}><Check />Просмотрено<span className="nav__count">{watched}</span></button>
+      <nav className="nav"><p className="eyebrow">Watch</p>
+        <button className={`nav__item ${collection === "all" ? "nav__item--active" : ""}`} onClick={() => chooseCollection("all")}><Library />Library<span className="nav__count">{shows.length}</span></button>
+        <a className="nav__item" href="#continue" onClick={() => setMenuOpen(false)}><Play />Continue{resume.length > 0 && <span className="nav__dot" />}</a>
+        <button className={`nav__item ${collection === "favorites" ? "nav__item--active" : ""}`} onClick={() => chooseCollection("favorites")}><Heart />Favorites<span className="nav__count">{favorites}</span></button>
+        <p className="eyebrow">Collections</p><button className={`nav__item ${collection === "watched" ? "nav__item--active" : ""}`} onClick={() => chooseCollection("watched")}><Check />Watched<span className="nav__count">{watched}</span></button>
       </nav>
-      <div className="server-status"><i /><span><strong>Медиатека</strong><small>{media.status === "ready" ? "Актуальна" : "Индексируется автоматически"}</small></span></div>
-      <button className="profile" onClick={logout}><span className="profile__avatar">{account.username.slice(0, 2).toUpperCase()}</span><span><strong>{account.username}</strong><small>{account.role === "admin" ? "Администратор" : "Выйти из аккаунта"}</small></span><LogOut /></button>
+      <div className="server-status"><i /><span><strong>Media library</strong><small>{media.status === "ready" ? "Up to date" : "Indexing automatically"}</small></span></div>
+      <button className="profile" onClick={logout}><span className="profile__avatar">{account.username.slice(0, 2).toUpperCase()}</span><span><strong>{account.username}</strong><small>{account.role === "admin" ? "Administrator" : "Sign out"}</small></span><LogOut /></button>
     </aside>
     <main>
       <header className="topbar"><button className="icon-button menu-button" onClick={() => setMenuOpen(true)}><Menu /></button>
-        <label className="search"><Search /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти в библиотеке..." /><kbd>⌘ K</kbd></label>
-        <div className="topbar__actions"><div className="theme-select"><Palette /><select value={theme} onChange={(event) => setTheme(event.target.value)} title="Тема">{themes.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select><span>{activeTheme.label}</span></div>{account.role === "admin" && <button className="icon-button" onClick={() => setAdminOpen(true)} title="Администрирование"><Settings /></button>}<button className="icon-button" onClick={() => loadLibrary()} title="Обновить экран"><RefreshCw className={loading ? "spin" : ""} /></button></div>
+        <label className="search"><Search /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search library..." /><kbd>⌘ K</kbd></label>
+        <div className="topbar__actions"><div className="theme-select"><Palette /><select value={theme} onChange={(event) => setTheme(event.target.value)} title="Theme">{themes.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select><span>{activeTheme.label}</span></div>{account.role === "admin" && <button className="icon-button" onClick={() => setAdminOpen(true)} title="Administration"><Settings /></button>}<button className="icon-button" onClick={() => loadLibrary()} title="Refresh"><RefreshCw className={loading ? "spin" : ""} /></button></div>
       </header>
       {error && <div className="banner banner--error">{error}<button onClick={() => setError("")}><X /></button></div>}
-      {heroShow ? <section className="hero" style={heroShow.backdrop ? { "--hero-image": `url("${heroShow.backdrop}")` } : undefined}>
+      {heroShow ? <section className={`hero ${heroIsPortraitArt ? "hero--portrait" : ""}`} style={heroShow.backdrop ? { "--hero-image": `url("${heroShow.backdrop}")` } : undefined}>
         <div className="hero__image" /><div className="hero__shade" /><div className="hero__content">
-          <span className="hero__label"><i /> {resume.length ? "Продолжить просмотр" : "В вашей библиотеке"}</span>
-          <h1>{heroShow.seriesTitle || heroShow.title}<br />{heroShow.originalTitle && <em>{heroShow.originalTitle}</em>}</h1>
-          <p>{heroShow.desc}</p><div className="hero__actions"><button className="primary-button" onClick={() => play(heroShow)} disabled={busy}><Play fill="currentColor" />Смотреть</button><button className="glass-button" onClick={() => toggleFavorite(heroShow)}><Heart fill={heroShow.favorite ? "currentColor" : "none"} />{heroShow.favorite ? "В избранном" : "В избранное"}</button></div>
+          <span className="hero__label"><i /> {resume.length ? "Continue watching" : "In your library"}</span>
+          <h1>{heroTitle}<br />{heroOriginal && <em>{heroOriginal}</em>}</h1>
+          <p>{heroShow.desc}</p><div className="hero__actions"><button className="primary-button" onClick={() => play(heroShow)} disabled={busy}><Play fill="currentColor" />Watch</button><button className="glass-button" onClick={() => toggleFavorite(heroShow)}><Heart fill={heroShow.favorite ? "currentColor" : "none"} />{heroShow.favorite ? "Favorited" : "Add to favorites"}</button></div>
         </div>
-      </section> : <section className="empty empty--hero"><Library /><h3>Медиатека пока пуста</h3><p>Подключите релизы и обновите библиотеку, чтобы здесь появился каталог.</p></section>}
-      {resume.length > 0 && <section className="section" id="continue"><div className="section__heading"><div><p className="eyebrow eyebrow--accent">С возвращением</p><h2>Продолжить просмотр</h2></div><button className="text-button" onClick={scrollToCollection}>К библиотеке <ArrowRight /></button></div>
+      </section> : <section className="empty empty--hero"><Library /><h3>Your library is empty</h3><p>Connect releases and refresh the library to build the catalog.</p></section>}
+      {resume.length > 0 && <section className="section" id="continue"><div className="section__heading"><div><p className="eyebrow eyebrow--accent">Welcome back</p><h2>Continue watching</h2></div><button className="text-button" onClick={scrollToCollection}>To library <ArrowRight /></button></div>
         <div className="continue-grid">{resume.slice(0, 3).map((show) => <article className="continue-card" key={show.id} onClick={() => play(show)}><Poster show={show} /><button className="round-play"><Play fill="currentColor" /></button><div className="continue-card__info"><div><h3>{show.seriesTitle || show.title}</h3><p>{show.seriesTitle ? `${show.title} · ${show.meta}` : show.meta}</p></div><span>{show.progress}%</span></div><div className="progress"><i style={{ width: `${show.progress}%` }} /></div></article>)}</div>
       </section>}
-      <section className="section" id="collection"><div className="section__heading"><div><p className="eyebrow eyebrow--accent">Ваша коллекция</p><h2>{collectionTitle} <span>{filtered.length}</span></h2></div><div className="view-switch"><button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")}><Grid2X2 /></button><button className={view === "list" ? "active" : ""} onClick={() => setView("list")}><List /></button></div></div>
-        <div className="filter-row"><div className="genre-scroll">{genres.map((item) => <button key={item} className={genre === item ? "active" : ""} onClick={() => setGenre(item)}>{item}</button>)}</div><button className={`filter-button ${filtersOpen ? "active" : ""}`} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}><SlidersHorizontal />Фильтры</button></div>
-        {filtersOpen && <div className="filter-panel"><button className={`setting-row filter-toggle ${hideWatched ? "active" : ""}`} onClick={() => setHideWatched((value) => !value)}><span><strong>Скрыть просмотренное</strong><small>Оставить в выдаче только то, что еще не закончено.</small></span><i><b /></i></button><button className="filter-reset" onClick={resetFilters}>Сбросить фильтры</button></div>}
+      <section className="section" id="collection"><div className="section__heading"><div><p className="eyebrow eyebrow--accent">Your collection</p><h2>{collectionTitle} <span>{filtered.length}</span></h2></div><div className="view-switch"><button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")}><Grid2X2 /></button><button className={view === "list" ? "active" : ""} onClick={() => setView("list")}><List /></button></div></div>
+        <div className="filter-row"><div className="genre-scroll">{genres.map((item) => <button key={item} className={genre === item ? "active" : ""} onClick={() => setGenre(item)}>{item}</button>)}</div><button className={`filter-button ${filtersOpen ? "active" : ""}`} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}><SlidersHorizontal />Filters</button></div>
+        {filtersOpen && <div className="filter-panel"><button className={`setting-row filter-toggle ${hideWatched ? "active" : ""}`} onClick={() => setHideWatched((value) => !value)}><span><strong>Hide watched</strong><small>Show only titles that are not fully completed yet.</small></span><i><b /></i></button><button className="filter-reset" onClick={resetFilters}>Reset filters</button></div>}
         <div className={view === "grid" ? "library-grid" : "library-list"}>{filtered.map((show) => <article className="show-card" key={show.id} onClick={() => setActiveShow(show)}><div className="show-card__poster"><Poster show={show} />{show.rating && <span className="rating"><Star fill="currentColor" />{show.rating}</span>}<button className={`favorite ${show.favorite ? "active" : ""}`} onClick={(event) => { event.stopPropagation(); toggleFavorite(show); }}><Heart fill="currentColor" /></button></div><div className="show-card__info"><div><h3>{show.title}</h3><p>{show.year || "—"} · {show.genre} · {show.meta}</p></div></div>{show.progress > 0 && <div className="progress"><i style={{ width: `${show.progress}%` }} /></div>}</article>)}</div>
-        {!filtered.length && <div className="empty"><Search /><h3>Ничего не найдено</h3><p>Попробуйте другой запрос или жанр.</p></div>}
+        {!filtered.length && <div className="empty"><Search /><h3>Nothing found</h3><p>Try another search or genre.</p></div>}
       </section>
     </main>
     {activeShow && <DetailsModal show={activeShow} busy={busy} onClose={() => setActiveShow(null)} onPlay={play} onToggleFavorite={toggleFavorite} />}
@@ -513,11 +516,11 @@ function App({ account, media, onAccountLogout }) {
 function Root() {
   const [state, setState] = useState(null);
   useEffect(() => { authApi.status().then(setState).catch(() => setState({ setupRequired: false, registrationEnabled: false, user: null })); }, []);
-  if (!state) return <div className="loading-screen"><span className="logo__mark"><Sparkles /></span><RefreshCw className="spin" /><p>Запускаем AniWRLD...</p></div>;
+  if (!state) return <div className="loading-screen"><span className="logo__mark"><Sparkles /></span><RefreshCw className="spin" /><p>Starting AniWRLD...</p></div>;
   if (!state.user) return <AuthScreen state={state} onAuthenticated={(user) => setState((current) => ({ ...current, setupRequired: false, user }))} />;
   if (!state.media?.configured) {
     if (state.user.role === "admin") return <LibrarySetup deploymentPath={state.media?.deploymentPath} onConfigured={(media) => setState((current) => ({ ...current, media }))} />;
-    return <div className="loading-screen"><span className="logo__mark"><HardDrive /></span><p>Владелец ещё подготавливает медиатеку.</p></div>;
+    return <div className="loading-screen"><span className="logo__mark"><HardDrive /></span><p>The owner is still preparing the library.</p></div>;
   }
   return <App account={state.user} media={state.media} onAccountLogout={() => setState((current) => ({ ...current, user: null }))} />;
 }

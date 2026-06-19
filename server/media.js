@@ -33,7 +33,7 @@ async function raw(path, options = {}, token = getSetting("media_engine_token", 
   });
   if (!response.ok) {
     const details = await response.text();
-    throw new Error(`Медиадвижок вернул ${response.status}${details ? `: ${details.slice(0, 300)}` : ""}`);
+    throw new Error(`Media engine returned ${response.status}${details ? `: ${details.slice(0, 300)}` : ""}`);
   }
   return response;
 }
@@ -62,7 +62,7 @@ async function ensureEngine() {
       if (response.ok) return;
     } catch {}
   }
-  throw new Error("Внутренняя медиасистема недоступна. Запустите полный стек через Docker Compose.");
+  throw new Error("The internal media engine is unavailable. Start the full stack with Docker Compose.");
 }
 
 function percent(userData) {
@@ -71,7 +71,7 @@ function percent(userData) {
 
 function formatRuntime(ticks) {
   const minutes = Math.round((ticks || 0) / TICKS_PER_SECOND / 60);
-  return minutes >= 60 ? `${Math.floor(minutes / 60)}ч ${minutes % 60}м` : `${minutes}м`;
+  return minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`;
 }
 
 function mapItem(item) {
@@ -81,8 +81,8 @@ function mapItem(item) {
   const episodeNumber = item.IndexNumber || null;
   const runtime = item.RunTimeTicks ? formatRuntime(item.RunTimeTicks) : null;
   const episodeMeta = [
-    seasonNumber ? `Сезон ${seasonNumber}` : null,
-    episodeNumber ? `Серия ${episodeNumber}` : null,
+    seasonNumber ? `Season ${seasonNumber}` : null,
+    episodeNumber ? `Episode ${episodeNumber}` : null,
     runtime,
   ].filter(Boolean).join(" · ");
   const episodeImageId = item.ParentThumbItemId || item.SeriesId || item.Id;
@@ -95,10 +95,10 @@ function mapItem(item) {
     originalTitle: item.OriginalTitle,
     year: item.ProductionYear,
     rating: item.CommunityRating ? Number(item.CommunityRating.toFixed(1)) : null,
-    genre: item.Genres?.[0] || (isSeries ? "Сериал" : isEpisode ? "Эпизод" : "Фильм"),
+    genre: item.Genres?.[0] || (isSeries ? "Series" : isEpisode ? "Episode" : "Movie"),
     genres: item.Genres || [],
-    meta: isSeries ? `${item.ChildCount || item.RecursiveItemCount || "?"} серий` : isEpisode ? episodeMeta : `Фильм${runtime ? ` · ${runtime}` : ""}`,
-    desc: item.Overview || "Описание пока не добавлено.",
+    meta: isSeries ? `${item.ChildCount || item.RecursiveItemCount || "?"} episodes` : isEpisode ? episodeMeta : `Movie${runtime ? ` · ${runtime}` : ""}`,
+    desc: item.Overview || "No description yet.",
     progress: percent(item.UserData),
     favorite: Boolean(item.UserData?.IsFavorite),
     played: Boolean(item.UserData?.Played || (isSeries && item.UserData?.UnplayedItemCount === 0)),
@@ -224,7 +224,7 @@ export function mediaState() {
 
 export async function configureMediaOwner(username, libraryPath) {
   const path = String(process.env.ANIWRLD_LIBRARY_PATH || libraryPath || "").trim();
-  if (!path || !existsSync(path) || !statSync(path).isDirectory()) throw new Error("Выбранная папка недоступна серверу.");
+  if (!path || !existsSync(path) || !statSync(path).isDirectory()) throw new Error("The selected folder is not available to the server.");
   setSetting("media_engine_status", "connecting");
   try {
     await ensureEngine();
@@ -274,13 +274,13 @@ export async function configureMediaOwner(username, libraryPath) {
   } catch (error) {
     setSetting("media_engine_status", "engine_unavailable");
     console.error("Media engine setup failed:", error);
-    throw new Error(`Не удалось подготовить внутреннюю медиасистему: ${error.message}`);
+    throw new Error(`Could not prepare the internal media engine: ${error.message}`);
   }
 }
 
 function userId() {
   const value = getSetting("media_engine_user_id", "");
-  if (!value) throw new Error("Медиатека ещё не настроена.");
+  if (!value) throw new Error("The media library is not configured yet.");
   return value;
 }
 
@@ -318,7 +318,7 @@ async function resolvePlayable(item) {
   if (item.type !== "Series") return item;
   const data = await getEpisodes(item.id);
   const episode = data.Items.find((entry) => entry.UserData?.PlaybackPositionTicks > 0) || data.Items.find((entry) => !entry.UserData?.Played) || data.Items[0];
-  if (!episode) throw new Error("В сериале нет доступных эпизодов.");
+  if (!episode) throw new Error("This series has no available episodes.");
   return enrichItem(mapItem(episode));
 }
 
@@ -356,7 +356,7 @@ export async function playback(item) {
     body: JSON.stringify({ UserId: userId(), StartTimeTicks: playable.positionTicks || 0, AutoOpenLiveStream: true }),
   });
   const source = info.MediaSources?.[0];
-  if (!source) throw new Error("Источник воспроизведения не найден.");
+  if (!source) throw new Error("Playback source was not found.");
   const container = source.Container?.toLowerCase() || "";
   const videoStream = source.MediaStreams?.find((stream) => stream.Type === "Video");
   const params = new URLSearchParams({
@@ -385,7 +385,7 @@ export async function playback(item) {
   const subtitles = (source.MediaStreams || [])
     .filter((stream) => stream.Type === "Subtitle")
     .map((stream) => ({
-      label: stream.DisplayTitle || stream.Title || stream.Language || `Субтитры ${stream.Index + 1}`,
+      label: stream.DisplayTitle || stream.Title || stream.Language || `Subtitles ${stream.Index + 1}`,
       language: stream.Language || `sub-${stream.Index}`,
       src: `/api/media/subtitles/${playable.id}/${encodeURIComponent(source.Id)}/${stream.Index}`,
     }));
@@ -422,7 +422,7 @@ export async function proxySubtitle(id, source, index) {
 }
 
 export async function proxyAbsolute(url) {
-  if (!url.startsWith(`${baseUrl()}/`)) throw new Error("Недопустимый адрес медиадвижка.");
+  if (!url.startsWith(`${baseUrl()}/`)) throw new Error("Invalid media engine URL.");
   const response = await fetch(url, {
     headers: {
       Authorization: authHeader(getSetting("media_engine_token", "")),
@@ -430,7 +430,7 @@ export async function proxyAbsolute(url) {
       "X-Emby-Token": getSetting("media_engine_token", ""),
     },
   });
-  if (!response.ok) throw new Error(`Медиадвижок вернул ${response.status}`);
+  if (!response.ok) throw new Error(`Media engine returned ${response.status}`);
   return response;
 }
 

@@ -261,8 +261,8 @@ function applyMetadata(item, metadata) {
     desc: metadata.description || item.desc,
     image: metadata.poster || item.image,
     backdrop: metadata.backdrop || item.backdrop,
-    genres: item.genres?.length ? item.genres : metadata.genres?.length ? metadata.genres : ["Аниме"],
-    genre: item.genre && item.genre !== "Сериал" && item.genre !== "Эпизод" ? item.genre : "Аниме",
+    genres: item.genres?.length ? item.genres : metadata.genres?.length ? metadata.genres : ["Anime"],
+    genre: item.genre && item.genre !== "Series" && item.genre !== "Episode" ? item.genre : "Anime",
     metadata,
   };
 }
