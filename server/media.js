@@ -182,9 +182,7 @@ export async function getLibrary() {
   });
   const data = await request(`/Users/${userId()}/Items?${query}`);
   setSetting("media_engine_status", "ready");
-  return enrichItems(data.Items
-    .filter((item) => item.Type !== "Series" || Number(item.RecursiveItemCount || 0) > 0)
-    .map(mapItem));
+  return enrichItems(data.Items.map(mapItem));
 }
 
 export async function getResume() {

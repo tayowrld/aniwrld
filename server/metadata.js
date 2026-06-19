@@ -32,6 +32,7 @@ function cacheSet(provider, key, payload) {
 function normalizeShikimori(entry) {
   if (!entry) return null;
   const image = entry.image?.original || entry.image?.preview || entry.image?.x96 || "";
+  const screenshot = entry.screenshots?.[0]?.original || entry.screenshots?.[0]?.preview || "";
   return {
     provider: SHIKIMORI,
     providerId: entry.id,
@@ -45,9 +46,20 @@ function normalizeShikimori(entry) {
     episodesAired: entry.episodes_aired || null,
     airedOn: entry.aired_on || "",
     releasedOn: entry.released_on || "",
+    description: stripHtml(entry.description || entry.description_html || ""),
     poster: image ? `${BASE_URL}${image}` : "",
+    backdrop: screenshot ? `${BASE_URL}${screenshot}` : "",
     url: entry.url ? `${BASE_URL}${entry.url}` : "",
   };
+}
+
+function stripHtml(value = "") {
+  return String(value)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\[[^\]]+\]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 async function searchShikimori(title) {
@@ -69,7 +81,16 @@ async function searchShikimori(title) {
     });
     if (!response.ok) return null;
     const [entry] = await response.json();
-    const metadata = normalizeShikimori(entry);
+    let metadata = normalizeShikimori(entry);
+    if (metadata?.providerId) {
+      const details = await fetch(`${BASE_URL}/api/animes/${metadata.providerId}`, {
+        headers: {
+          "Accept": "application/json",
+          "User-Agent": "AniWRLD metadata resolver",
+        },
+      });
+      if (details.ok) metadata = normalizeShikimori(await details.json()) || metadata;
+    }
     if (metadata) cacheSet(SHIKIMORI, key, metadata);
     return metadata;
   } catch {
@@ -81,10 +102,14 @@ function applyMetadata(item, metadata) {
   if (!metadata) return item;
   return {
     ...item,
-    title: item.title || metadata.russianTitle || metadata.englishTitle,
+    title: metadata.russianTitle || item.title || metadata.englishTitle,
     originalTitle: item.originalTitle || metadata.originalTitle,
     rating: item.rating || metadata.score,
-    desc: item.desc === "Описание пока не добавлено." ? "Описание будет подтянуто после расширенной индексации." : item.desc,
+    desc: metadata.description || item.desc,
+    image: metadata.poster || item.image,
+    backdrop: metadata.backdrop || item.backdrop,
+    genres: item.genres?.length ? item.genres : ["Аниме"],
+    genre: item.genre && item.genre !== "Сериал" && item.genre !== "Эпизод" ? item.genre : "Аниме",
     metadata,
   };
 }
