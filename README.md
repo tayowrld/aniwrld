@@ -8,6 +8,7 @@ AniWRLD is a self-hosted anime media library with a polished React interface, Je
 - React + Vite frontend with responsive library, details modal, favorites, watched collection, and resume cards.
 - Custom Plyr video player with HLS playback, selectable quality profiles, volume, subtitles, PiP, fullscreen, episode sidebar, and next-episode prompt.
 - Server-side Jellyfin integration: tokens and media engine API are never exposed to the browser.
+- Russia-friendly anime metadata enrichment through Shikimori with local SQLite caching.
 - Watch progress reporting and resume support.
 - Favorite persistence through Jellyfin plus browser cookie fallback.
 - Theme presets inspired by AniWRLD, Catppuccin, Rosé Pine, and Everforest.
@@ -125,6 +126,17 @@ AniWRLD configures the media engine during owner setup, indexes the mounted medi
 - favorites;
 - playback information;
 - direct stream, HLS, and subtitle proxying.
+
+## Metadata
+
+AniWRLD does not rely on TMDB as a critical anime metadata source. Runtime metadata is enriched server-side through Shikimori and cached in SQLite for 30 days.
+
+The metadata resolver:
+
+- cleans release/folder names before lookup;
+- queries Shikimori as the primary anime metadata provider;
+- stores normalized provider data in `metadata_cache`;
+- keeps Jellyfin as the playback/index engine, not the only metadata authority.
 
 ## Player
 

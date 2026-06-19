@@ -2,6 +2,7 @@ import { existsSync, statSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { getSetting, setSetting } from "./db.js";
+import { enrichItem, enrichItems } from "./metadata.js";
 
 const CLIENT = "AniWRLD";
 const VERSION = "0.3.0";
@@ -181,15 +182,15 @@ export async function getLibrary() {
   });
   const data = await request(`/Users/${userId()}/Items?${query}`);
   setSetting("media_engine_status", "ready");
-  return data.Items
+  return enrichItems(data.Items
     .filter((item) => item.Type !== "Series" || Number(item.RecursiveItemCount || 0) > 0)
-    .map(mapItem);
+    .map(mapItem));
 }
 
 export async function getResume() {
   const query = new URLSearchParams({ MediaTypes: "Video", Limit: "12", Fields: "Overview,Genres,CommunityRating,BackdropImageTags,SeriesInfo" });
   const data = await request(`/Users/${userId()}/Items/Resume?${query}`);
-  return data.Items.map(mapItem);
+  return enrichItems(data.Items.map(mapItem));
 }
 
 export async function favorite(id, value) {
@@ -206,7 +207,7 @@ async function resolvePlayable(item) {
   const data = await getEpisodes(item.id);
   const episode = data.Items.find((entry) => entry.UserData?.PlaybackPositionTicks > 0) || data.Items.find((entry) => !entry.UserData?.Played) || data.Items[0];
   if (!episode) throw new Error("В сериале нет доступных эпизодов.");
-  return mapItem(episode);
+  return enrichItem(mapItem(episode));
 }
 
 async function getEpisodes(id) {
@@ -220,7 +221,7 @@ async function getEpisodes(id) {
 
 export async function getSeriesEpisodes(id) {
   const data = await getEpisodes(id);
-  return data.Items.map(mapItem);
+  return enrichItems(data.Items.map(mapItem));
 }
 
 export async function playback(item) {

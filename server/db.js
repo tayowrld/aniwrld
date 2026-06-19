@@ -30,6 +30,14 @@ db.exec(`
     value TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS metadata_cache (
+    provider TEXT NOT NULL,
+    lookup_key TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (provider, lookup_key)
+  );
+
   INSERT OR IGNORE INTO settings (key, value) VALUES ('registration_enabled', 'false');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('media_engine_url', 'http://127.0.0.1:8096');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('library_path', '');
