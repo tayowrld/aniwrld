@@ -72,22 +72,37 @@ function formatRuntime(ticks) {
 
 function mapItem(item) {
   const isSeries = item.Type === "Series";
+  const isEpisode = item.Type === "Episode";
+  const seasonNumber = item.ParentIndexNumber || null;
+  const episodeNumber = item.IndexNumber || null;
+  const runtime = item.RunTimeTicks ? formatRuntime(item.RunTimeTicks) : null;
+  const episodeMeta = [
+    seasonNumber ? `Сезон ${seasonNumber}` : null,
+    episodeNumber ? `Серия ${episodeNumber}` : null,
+    runtime,
+  ].filter(Boolean).join(" · ");
+  const episodeImageId = item.ParentThumbItemId || item.SeriesId || item.Id;
+  const backdropId = item.ParentBackdropItemId || item.SeriesId || item.Id;
   return {
     id: item.Id,
     title: item.Name,
+    seriesId: item.SeriesId || null,
+    seriesTitle: item.SeriesName || null,
     originalTitle: item.OriginalTitle,
     year: item.ProductionYear,
     rating: item.CommunityRating ? Number(item.CommunityRating.toFixed(1)) : null,
-    genre: item.Genres?.[0] || (isSeries ? "Сериал" : "Фильм"),
+    genre: item.Genres?.[0] || (isSeries ? "Сериал" : isEpisode ? "Эпизод" : "Фильм"),
     genres: item.Genres || [],
-    meta: isSeries ? `${item.ChildCount || item.RecursiveItemCount || "?"} серий` : `Фильм${item.RunTimeTicks ? ` · ${formatRuntime(item.RunTimeTicks)}` : ""}`,
+    meta: isSeries ? `${item.ChildCount || item.RecursiveItemCount || "?"} серий` : isEpisode ? episodeMeta : `Фильм${runtime ? ` · ${runtime}` : ""}`,
     desc: item.Overview || "Описание пока не добавлено.",
     progress: percent(item.UserData),
     favorite: Boolean(item.UserData?.IsFavorite),
-    played: Boolean(item.UserData?.Played),
+    played: Boolean(item.UserData?.Played || (isSeries && item.UserData?.UnplayedItemCount === 0)),
     type: item.Type,
-    image: `/api/media/image/${item.Id}/Primary?width=700`,
-    backdrop: item.BackdropImageTags?.length ? `/api/media/image/${item.Id}/Backdrop?width=1600` : null,
+    seasonNumber,
+    episodeNumber,
+    image: `/api/media/image/${isEpisode ? episodeImageId : item.Id}/Primary?width=700`,
+    backdrop: (item.BackdropImageTags?.length || item.ParentBackdropImageTags?.length) ? `/api/media/image/${backdropId}/Backdrop?width=1600` : null,
     positionTicks: item.UserData?.PlaybackPositionTicks || 0,
   };
 }
@@ -161,12 +176,14 @@ function userId() {
 export async function getLibrary() {
   const query = new URLSearchParams({
     Recursive: "true", IncludeItemTypes: "Series,Movie",
-    Fields: "Overview,Genres,CommunityRating,BackdropImageTags,RecursiveItemCount,OriginalTitle",
+    Fields: "Overview,Genres,CommunityRating,BackdropImageTags,RecursiveItemCount,OriginalTitle,UserData",
     ImageTypeLimit: "1", EnableImageTypes: "Primary,Backdrop", SortBy: "SortName",
   });
   const data = await request(`/Users/${userId()}/Items?${query}`);
   setSetting("media_engine_status", "ready");
-  return data.Items.map(mapItem);
+  return data.Items
+    .filter((item) => item.Type !== "Series" || Number(item.RecursiveItemCount || 0) > 0)
+    .map(mapItem);
 }
 
 export async function getResume() {
@@ -186,11 +203,24 @@ export async function scan() {
 
 async function resolvePlayable(item) {
   if (item.type !== "Series") return item;
-  const query = new URLSearchParams({ UserId: userId(), IsMissing: "false", Fields: "Overview,Genres,CommunityRating,BackdropImageTags,SeriesInfo" });
-  const data = await request(`/Shows/${item.id}/Episodes?${query}`);
+  const data = await getEpisodes(item.id);
   const episode = data.Items.find((entry) => entry.UserData?.PlaybackPositionTicks > 0) || data.Items.find((entry) => !entry.UserData?.Played) || data.Items[0];
   if (!episode) throw new Error("В сериале нет доступных эпизодов.");
   return mapItem(episode);
+}
+
+async function getEpisodes(id) {
+  const query = new URLSearchParams({
+    UserId: userId(),
+    IsMissing: "false",
+    Fields: "Overview,Genres,CommunityRating,BackdropImageTags,SeriesInfo,UserData",
+  });
+  return request(`/Shows/${id}/Episodes?${query}`);
+}
+
+export async function getSeriesEpisodes(id) {
+  const data = await getEpisodes(id);
+  return data.Items.map(mapItem);
 }
 
 export async function playback(item) {
@@ -201,17 +231,46 @@ export async function playback(item) {
   });
   const source = info.MediaSources?.[0];
   if (!source) throw new Error("Источник воспроизведения не найден.");
+  const container = source.Container?.toLowerCase() || "";
+  const videoStream = source.MediaStreams?.find((stream) => stream.Type === "Video");
   const params = new URLSearchParams({
     UserId: userId(), MediaSourceId: source.Id, DeviceId: DEVICE_ID, PlaySessionId: info.PlaySessionId || "",
     VideoCodec: "h264", AudioCodec: "aac", TranscodingContainer: "ts", SegmentContainer: "ts",
+    MaxStreamingBitrate: "120000000", VideoBitrate: "110000000", AudioBitrate: "320000",
+    MaxWidth: String(Math.min(videoStream?.Width || 1920, 1920)), MaxHeight: String(Math.min(videoStream?.Height || 1080, 1080)),
+    AllowVideoStreamCopy: "true", AllowAudioStreamCopy: "true",
     MinSegments: "1", BreakOnNonKeyFrames: "true",
   });
+  const qualityProfiles = [
+    [1080, 110000000],
+    [720, 8000000],
+    [480, 3000000],
+    [360, 1200000],
+    [144, 300000],
+  ];
+  const qualityUrls = Object.fromEntries(qualityProfiles.map(([height, bitrate]) => {
+    const profile = new URLSearchParams(params);
+    profile.set("MaxHeight", String(height));
+    profile.set("MaxWidth", String(Math.round(height * 16 / 9)));
+    profile.set("VideoBitrate", String(bitrate));
+    profile.set("MaxStreamingBitrate", String(bitrate + 320000));
+    return [height, `/api/media/hls/${playable.id}?${profile}`];
+  }));
+  const subtitles = (source.MediaStreams || [])
+    .filter((stream) => stream.Type === "Subtitle")
+    .map((stream) => ({
+      label: stream.DisplayTitle || stream.Title || stream.Language || `Субтитры ${stream.Index + 1}`,
+      language: stream.Language || `sub-${stream.Index}`,
+      src: `/api/media/subtitles/${playable.id}/${encodeURIComponent(source.Id)}/${stream.Index}`,
+    }));
   return {
     item: playable, mediaSourceId: source.Id, playSessionId: info.PlaySessionId,
-    directPlay: Boolean(source.SupportsDirectPlay && ["mp4", "webm"].includes(source.Container?.toLowerCase())),
+    directPlay: Boolean(source.SupportsDirectPlay && ["mp4", "m4v", "webm", "mov"].includes(container)),
     directUrl: `/api/media/stream/${playable.id}?source=${encodeURIComponent(source.Id)}`,
     hlsUrl: `/api/media/hls/${playable.id}?${params}`,
+    qualityUrls,
     startSeconds: (playable.positionTicks || 0) / TICKS_PER_SECOND,
+    subtitles,
   };
 }
 
@@ -232,6 +291,10 @@ export async function proxyHls(id, search) {
   return raw(`/Videos/${id}/master.m3u8?${search}`);
 }
 
+export async function proxySubtitle(id, source, index) {
+  return raw(`/Videos/${id}/${encodeURIComponent(source)}/Subtitles/${index}/Stream.vtt`, { headers: { "Content-Type": undefined } });
+}
+
 export async function proxyAbsolute(url) {
   if (!url.startsWith(`${baseUrl()}/`)) throw new Error("Недопустимый адрес медиадвижка.");
   const response = await fetch(url, {
@@ -245,12 +308,12 @@ export async function proxyAbsolute(url) {
   return response;
 }
 
-export function rewritePlaylist(text) {
+export function rewritePlaylist(text, sourceUrl = `${baseUrl()}/`) {
   return text.replace(/^(?!#)(.+)$/gm, (line) => {
-    const absolute = new URL(line.trim(), `${baseUrl()}/`).toString();
+    const absolute = new URL(line.trim(), sourceUrl).toString();
     return `/api/media/proxy?url=${encodeURIComponent(absolute)}`;
   }).replace(/URI="([^"]+)"/g, (_, uri) => {
-    const absolute = new URL(uri, `${baseUrl()}/`).toString();
+    const absolute = new URL(uri, sourceUrl).toString();
     return `URI="/api/media/proxy?url=${encodeURIComponent(absolute)}"`;
   });
 }

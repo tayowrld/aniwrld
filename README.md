@@ -1,79 +1,154 @@
 # AniWRLD
 
-Красивое приложение для домашней аниме-библиотеки.
+AniWRLD is a self-hosted anime media library with a polished React interface, Jellyfin-powered media indexing, private server-side streaming, watch progress, favorites, themes, and a custom Plyr-based video player.
 
-## Запуск
+## Features
 
-```bash
-npm install
-npm run dev
-```
+- Private owner-managed anime library.
+- React + Vite frontend with responsive library, details modal, favorites, watched collection, and resume cards.
+- Custom Plyr video player with HLS playback, selectable quality profiles, volume, subtitles, PiP, fullscreen, episode sidebar, and next-episode prompt.
+- Server-side Jellyfin integration: tokens and media engine API are never exposed to the browser.
+- Watch progress reporting and resume support.
+- Favorite persistence through Jellyfin plus browser cookie fallback.
+- Theme presets inspired by AniWRLD, Catppuccin, Rosé Pine, and Everforest.
+- Docker Compose deployment with AniWRLD and an internal Jellyfin container.
+- SQLite-backed auth and settings with HttpOnly sessions.
 
-Основной способ развёртывания — Docker Compose. Он одинаково поднимает AniWRLD и закрытый внутренний медиадвижок.
+## Quick Start
+
+Requirements:
+
+- Docker and Docker Compose
+- A local anime folder available on the host machine
+
+Create a local environment file:
 
 ```bash
 cp .env.example .env
-# Укажите абсолютный путь к библиотеке в ANIWRLD_MEDIA_PATH
-docker compose up -d --build
 ```
 
-После запуска откройте `http://localhost:8787`, создайте аккаунт владельца и подтвердите подключённую папку. Дальнейшая индексация выполняется автоматически.
+Edit `.env`:
 
-Для локальной разработки интерфейса:
+```env
+ANIWRLD_MEDIA_PATH=/absolute/path/to/anime
+ANIWRLD_PORT=8787
+```
+
+Start the stack:
+
+```bash
+docker-compose up -d --build
+```
+
+Open:
+
+```text
+http://localhost:8787
+```
+
+On first launch, create the owner account. The first registered user becomes the administrator.
+
+## Local Development
+
+Install dependencies:
 
 ```bash
 npm install
+```
+
+Run the development server:
+
+```bash
 npm run dev
 ```
 
-Нативный dev-режим не устанавливает медиадвижок автоматически. При необходимости его адрес задаётся через `ANIWRLD_MEDIA_ENGINE_URL`.
+Build the frontend:
 
-## Авторизация и база данных
+```bash
+npm run build
+```
 
-AniWRLD использует встроенную в Node.js SQLite-базу `data/aniwrld.sqlite`, поэтому отдельный сервер базы данных не нужен.
+Run the production server locally:
 
-- первый зарегистрированный аккаунт всегда становится администратором;
-- до создания администратора пользоваться приложением нельзя;
-- регистрация остальных аккаунтов по умолчанию отключена;
-- администратор может включить её в панели управления;
-- пароли хешируются через `scrypt` с индивидуальной солью;
-- серверные сессии хранятся в SQLite, браузер получает только `HttpOnly` cookie;
-- обычные пользователи не могут читать список аккаунтов или менять настройки регистрации.
+```bash
+npm start
+```
 
-База и временные WAL-файлы исключены из Git.
+For native local development, AniWRLD expects an available media engine. You can point it to one with:
 
-## Внутренняя медиасистема
+```env
+ANIWRLD_MEDIA_ENGINE_URL=http://127.0.0.1:8096
+```
 
-Внутренний медиадвижок работает только на стороне владельца и не показывается пользователям:
+## Environment
 
-- использует те же данные, что первый аккаунт администратора;
-- разворачивается рядом с AniWRLD через Docker Compose;
-- получает единственную владельческую папку с контентом;
-- автоматически индексирует её и обновляет метаданные;
-- запускает фоновую проверку обновлений каждые 15 минут;
-- отдаёт пользователям общую библиотеку владельца;
-- его адрес, токен и API никогда не передаются клиенту;
-- изображения, потоки и HLS проходят через сервер AniWRLD.
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `ANIWRLD_MEDIA_PATH` | Docker | none | Absolute host path mounted into the media engine and AniWRLD. |
+| `ANIWRLD_PORT` | No | `8787` | Host port exposed by Docker Compose. |
+| `ANIWRLD_DB_PATH` | No | `data/aniwrld.sqlite` | SQLite database path. Docker sets this to `/app/data/aniwrld.sqlite`. |
+| `ANIWRLD_MEDIA_ENGINE_URL` | No | `http://127.0.0.1:8096` | Internal Jellyfin URL. Docker sets this to `http://media-engine:8096`. |
+| `ANIWRLD_LIBRARY_PATH` | No | none | Deployment-side library path. Docker sets this to `/media`. |
 
-Внутренний контейнер не публикует свой порт наружу и доступен только AniWRLD по закрытой Docker-сети.
+## Project Structure
 
-## Интеграция
+```text
+.
+├── server/          # Auth, SQLite, settings, media proxy, production server
+├── src/             # React frontend
+├── src/lib/         # Browser API clients
+├── public/          # Static visual assets
+├── scripts/         # Local dev helpers
+├── compose.yaml     # AniWRLD + internal Jellyfin stack
+├── Dockerfile       # Production image
+└── vite.config.js   # Vite config
+```
 
-Архитектура разделена на два слоя:
+## Security Model
 
-- `server/` — авторизация, роли, настройки, SQLite и production-сервер;
-- `server/media.js` — закрытый адаптер внутреннего медиадвижка;
-- `src/lib/media.js` — нейтральный API медиатеки без знаний о движке.
+- The Jellyfin/media-engine token is stored server-side only.
+- The browser talks only to AniWRLD API routes.
+- Images, direct streams, subtitles, and HLS playlists are proxied through AniWRLD.
+- Sessions are stored in SQLite and sent as HttpOnly cookies.
+- Registration is disabled by default after the first administrator is created.
+- Runtime database and media metadata are ignored by Git.
 
-Закрытый медиаслой поддерживает:
+## Media Engine
 
-- владельческую серверную авторизацию без передачи токенов в браузер;
-- загрузка библиотеки и списка продолжения просмотра;
-- изображения и метаданные;
-- избранное и запуск сканирования;
-- выбор следующего непросмотренного эпизода;
-- direct play для браузерных MP4/WebM;
-- HLS-транскодирование остальных форматов;
-- отправка начала, прогресса и остановки просмотра.
+Docker Compose starts an internal Jellyfin container named `media-engine`. It is not published to the host; AniWRLD talks to it through the private Compose network.
 
-Интерфейс работает через нормализованную модель AniWRLD и не зависит от конкретного внутреннего движка.
+AniWRLD configures the media engine during owner setup, indexes the mounted media folder, then uses it for:
+
+- library discovery;
+- metadata and artwork;
+- resume/watched state;
+- favorites;
+- playback information;
+- direct stream, HLS, and subtitle proxying.
+
+## Player
+
+The player uses Plyr with HLS.js and supports:
+
+- Auto, 1080p, 720p, 480p, 360p, and 144p quality options;
+- subtitles when provided by the media engine;
+- picture-in-picture;
+- fullscreen;
+- episode sidebar;
+- manual next-episode button;
+- next-episode prompt near the end of playback.
+
+AniWRLD does not auto-skip endings or automatically advance episodes.
+
+## Git Hygiene
+
+The repository intentionally ignores:
+
+- `node_modules/`
+- `dist/`
+- `data/`
+- `.env`
+- SQLite/WAL files
+- local editor and assistant state
+
+Use `.env.example` as the only committed environment template.

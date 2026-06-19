@@ -3,3 +3,8 @@ dist
 data
 .git
 .env
+.DS_Store
+.cline
+.crush
+*.log
+README.local.md

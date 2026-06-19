@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
 import { db, getSetting, setSetting } from "./db.js";
 import { cookieToken, createSession, deleteSession, expiredCookie, hashPassword, readUser, sessionCookie, verifyPassword } from "./auth.js";
-import { configureMediaOwner, favorite, getLibrary, getResume, mediaState, playback, proxyAbsolute, proxyHls, proxyImage, proxyStream, report, rewritePlaylist, scan } from "./media.js";
+import { configureMediaOwner, favorite, getLibrary, getResume, getSeriesEpisodes, mediaState, playback, proxyAbsolute, proxyHls, proxyImage, proxyStream, proxySubtitle, report, rewritePlaylist, scan } from "./media.js";
 
 const port = Number(process.env.PORT || 8787);
 const host = process.env.HOST || "127.0.0.1";
@@ -102,6 +102,9 @@ async function api(request, response, url) {
   if (!mediaState().configured && url.pathname.startsWith("/api/media/")) return json(response, 409, { error: "Медиатека ещё не настроена." });
   if (request.method === "GET" && url.pathname === "/api/media/library") return json(response, 200, { items: await getLibrary() });
   if (request.method === "GET" && url.pathname === "/api/media/resume") return json(response, 200, { items: await getResume() });
+  if (request.method === "GET" && url.pathname.startsWith("/api/media/series/") && url.pathname.endsWith("/episodes")) {
+    return json(response, 200, { items: await getSeriesEpisodes(url.pathname.split("/")[4]) });
+  }
   if (request.method === "POST" && url.pathname === "/api/media/favorite") {
     const data = await body(request); await favorite(data.id, data.value); return json(response, 200, { ok: true });
   }
@@ -121,6 +124,10 @@ async function api(request, response, url) {
     const upstream = await proxyHls(url.pathname.split("/").pop(), url.searchParams.toString());
     return playlist(response, upstream);
   }
+  if (request.method === "GET" && url.pathname.startsWith("/api/media/subtitles/")) {
+    const [, , , , id, source, index] = url.pathname.split("/");
+    return pipeUpstream(response, await proxySubtitle(id, decodeURIComponent(source), index));
+  }
   if (request.method === "GET" && url.pathname === "/api/media/proxy") {
     const upstream = await proxyAbsolute(url.searchParams.get("url") || "");
     return upstream.headers.get("content-type")?.includes("mpegurl") ? playlist(response, upstream) : pipeUpstream(response, upstream);
@@ -129,7 +136,7 @@ async function api(request, response, url) {
 }
 
 async function playlist(response, upstream) {
-  const text = rewritePlaylist(await upstream.text());
+  const text = rewritePlaylist(await upstream.text(), upstream.url);
   response.writeHead(200, { "Content-Type": "application/vnd.apple.mpegurl", "Cache-Control": "no-store" });
   response.end(text);
 }

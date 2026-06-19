@@ -12,6 +12,7 @@ async function request(path, options = {}) {
 export const mediaApi = {
   library: async () => (await request("/library")).items,
   resume: async () => (await request("/resume")).items,
+  episodes: async (id) => (await request(`/series/${id}/episodes`)).items,
   setup: async (libraryPath) => (await request("/setup", { method: "POST", body: JSON.stringify({ libraryPath }) })).media,
   favorite: (id, value) => request("/favorite", { method: "POST", body: JSON.stringify({ id, value }) }),
   scan: () => request("/scan", { method: "POST" }),
