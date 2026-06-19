@@ -2,7 +2,7 @@ import React, { StrictMode, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowRight, Check, Grid2X2, Heart, Library, List,
-  Folder, FolderOpen, HardDrive, LogOut, Menu, MoreHorizontal, Play, RefreshCw, Search, Settings,
+  Folder, FolderOpen, HardDrive, LogOut, Menu, Play, RefreshCw, Search, Settings,
   Palette, Shield, SlidersHorizontal, Sparkles, Star, UserPlus, X,
 } from "lucide-react";
 import { authApi } from "./lib/auth";
@@ -379,16 +379,18 @@ function App({ account, media, onAccountLogout }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
   const [genre, setGenre] = useState("Все");
   const [view, setView] = useState("grid");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [hideWatched, setHideWatched] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeShow, setActiveShow] = useState(null);
   const [playback, setPlayback] = useState(null);
   const [adminOpen, setAdminOpen] = useState(false);
   const [collection, setCollection] = useState("all");
   const [theme, setTheme] = useState(() => localStorage.getItem("aniwrld_theme") || "aniwrld");
+  const searchRef = useRef(null);
 
   const loadLibrary = async () => {
     setLoading(true);
@@ -407,17 +409,39 @@ function App({ account, media, onAccountLogout }) {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("aniwrld_theme", theme);
   }, [theme]);
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const genres = useMemo(() => ["Все", ...new Set(shows.flatMap((show) => show.genres?.length ? show.genres : [show.genre]))], [shows]);
   const filtered = useMemo(() => shows.filter((show) => {
     const inCollection = collection === "favorites" ? show.favorite : collection === "watched" ? show.played : true;
-    return inCollection && (genre === "Все" || show.genres?.includes(genre) || show.genre === genre) && show.title.toLowerCase().includes(query.toLowerCase());
-  }), [shows, genre, query, collection]);
+    const watchedAllowed = !hideWatched || !show.played;
+    return inCollection && watchedAllowed && (genre === "Все" || show.genres?.includes(genre) || show.genre === genre) && show.title.toLowerCase().includes(query.toLowerCase());
+  }), [shows, genre, query, collection, hideWatched]);
   const favorites = shows.filter((show) => show.favorite).length;
   const watched = shows.filter((show) => show.played).length;
   const heroShow = resume[0] || shows[0] || null;
   const activeTheme = themes.find((item) => item.id === theme) || themes[0];
   const collectionTitle = collection === "favorites" ? "Избранное" : collection === "watched" ? "Просмотрено" : "Все аниме";
+  const chooseCollection = (nextCollection) => {
+    setCollection(nextCollection);
+    setMenuOpen(false);
+  };
+  const scrollToCollection = () => document.getElementById("collection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const resetFilters = () => {
+    setGenre("Все");
+    setQuery("");
+    setHideWatched(false);
+    setCollection("all");
+  };
 
   const logout = async () => { await authApi.logout(); onAccountLogout(); };
   const toggleFavorite = async (show) => {
@@ -444,25 +468,25 @@ function App({ account, media, onAccountLogout }) {
   return <div className="app-shell">
     <div className="particles"><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /></div>
     <div className="ambient ambient--one" /><div className="ambient ambient--two" />
+    {menuOpen && <button className="sidebar-scrim" aria-label="Закрыть меню" onClick={() => setMenuOpen(false)} />}
     <aside className={`sidebar ${menuOpen ? "sidebar--open" : ""}`}>
       <button className="mobile-close" onClick={() => setMenuOpen(false)}><X /></button>
       <a className="logo" href="#"><span className="logo__mark"><Sparkles size={17} /></span><span>ani<span>wrld</span></span></a>
       <nav className="nav"><p className="eyebrow">Смотреть</p>
-        <button className={`nav__item ${collection === "all" ? "nav__item--active" : ""}`} onClick={() => setCollection("all")}><Library />Библиотека<span className="nav__count">{shows.length}</span></button>
-        <a className="nav__item" href="#continue"><Play />Продолжить{resume.length > 0 && <span className="nav__dot" />}</a>
-        <button className={`nav__item ${collection === "favorites" ? "nav__item--active" : ""}`} onClick={() => setCollection("favorites")}><Heart />Избранное<span className="nav__count">{favorites}</span></button>
-        <p className="eyebrow">Коллекции</p><button className={`nav__item ${collection === "watched" ? "nav__item--active" : ""}`} onClick={() => setCollection("watched")}><Check />Просмотрено<span className="nav__count">{watched}</span></button>
+        <button className={`nav__item ${collection === "all" ? "nav__item--active" : ""}`} onClick={() => chooseCollection("all")}><Library />Библиотека<span className="nav__count">{shows.length}</span></button>
+        <a className="nav__item" href="#continue" onClick={() => setMenuOpen(false)}><Play />Продолжить{resume.length > 0 && <span className="nav__dot" />}</a>
+        <button className={`nav__item ${collection === "favorites" ? "nav__item--active" : ""}`} onClick={() => chooseCollection("favorites")}><Heart />Избранное<span className="nav__count">{favorites}</span></button>
+        <p className="eyebrow">Коллекции</p><button className={`nav__item ${collection === "watched" ? "nav__item--active" : ""}`} onClick={() => chooseCollection("watched")}><Check />Просмотрено<span className="nav__count">{watched}</span></button>
       </nav>
       <div className="server-status"><i /><span><strong>Медиатека</strong><small>{media.status === "ready" ? "Актуальна" : "Индексируется автоматически"}</small></span></div>
       <button className="profile" onClick={logout}><span className="profile__avatar">{account.username.slice(0, 2).toUpperCase()}</span><span><strong>{account.username}</strong><small>{account.role === "admin" ? "Администратор" : "Выйти из аккаунта"}</small></span><LogOut /></button>
     </aside>
     <main>
       <header className="topbar"><button className="icon-button menu-button" onClick={() => setMenuOpen(true)}><Menu /></button>
-        <label className="search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти в библиотеке..." /><kbd>⌘ K</kbd></label>
+        <label className="search"><Search /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти в библиотеке..." /><kbd>⌘ K</kbd></label>
         <div className="topbar__actions"><div className="theme-select"><Palette /><select value={theme} onChange={(event) => setTheme(event.target.value)} title="Тема">{themes.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select><span>{activeTheme.label}</span></div>{account.role === "admin" && <button className="icon-button" onClick={() => setAdminOpen(true)} title="Администрирование"><Settings /></button>}<button className="icon-button" onClick={() => loadLibrary()} title="Обновить экран"><RefreshCw className={loading ? "spin" : ""} /></button></div>
       </header>
       {error && <div className="banner banner--error">{error}<button onClick={() => setError("")}><X /></button></div>}
-      {notice && <div className="banner">{notice}</div>}
       {heroShow ? <section className="hero" style={heroShow.backdrop ? { "--hero-image": `url("${heroShow.backdrop}")` } : undefined}>
         <div className="hero__image" /><div className="hero__shade" /><div className="hero__content">
           <span className="hero__label"><i /> {resume.length ? "Продолжить просмотр" : "В вашей библиотеке"}</span>
@@ -470,12 +494,13 @@ function App({ account, media, onAccountLogout }) {
           <p>{heroShow.desc}</p><div className="hero__actions"><button className="primary-button" onClick={() => play(heroShow)} disabled={busy}><Play fill="currentColor" />Смотреть</button><button className="glass-button" onClick={() => toggleFavorite(heroShow)}><Heart fill={heroShow.favorite ? "currentColor" : "none"} />{heroShow.favorite ? "В избранном" : "В избранное"}</button></div>
         </div>
       </section> : <section className="empty empty--hero"><Library /><h3>Медиатека пока пуста</h3><p>Подключите релизы и обновите библиотеку, чтобы здесь появился каталог.</p></section>}
-      {resume.length > 0 && <section className="section" id="continue"><div className="section__heading"><div><p className="eyebrow eyebrow--accent">С возвращением</p><h2>Продолжить просмотр</h2></div><button className="text-button">Смотреть все <ArrowRight /></button></div>
+      {resume.length > 0 && <section className="section" id="continue"><div className="section__heading"><div><p className="eyebrow eyebrow--accent">С возвращением</p><h2>Продолжить просмотр</h2></div><button className="text-button" onClick={scrollToCollection}>К библиотеке <ArrowRight /></button></div>
         <div className="continue-grid">{resume.slice(0, 3).map((show) => <article className="continue-card" key={show.id} onClick={() => play(show)}><Poster show={show} /><button className="round-play"><Play fill="currentColor" /></button><div className="continue-card__info"><div><h3>{show.seriesTitle || show.title}</h3><p>{show.seriesTitle ? `${show.title} · ${show.meta}` : show.meta}</p></div><span>{show.progress}%</span></div><div className="progress"><i style={{ width: `${show.progress}%` }} /></div></article>)}</div>
       </section>}
       <section className="section" id="collection"><div className="section__heading"><div><p className="eyebrow eyebrow--accent">Ваша коллекция</p><h2>{collectionTitle} <span>{filtered.length}</span></h2></div><div className="view-switch"><button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")}><Grid2X2 /></button><button className={view === "list" ? "active" : ""} onClick={() => setView("list")}><List /></button></div></div>
-        <div className="filter-row"><div className="genre-scroll">{genres.map((item) => <button key={item} className={genre === item ? "active" : ""} onClick={() => setGenre(item)}>{item}</button>)}</div><button className="filter-button"><SlidersHorizontal />Фильтры</button></div>
-        <div className={view === "grid" ? "library-grid" : "library-list"}>{filtered.map((show) => <article className="show-card" key={show.id} onClick={() => setActiveShow(show)}><div className="show-card__poster"><Poster show={show} />{show.rating && <span className="rating"><Star fill="currentColor" />{show.rating}</span>}<button className={`favorite ${show.favorite ? "active" : ""}`} onClick={(event) => { event.stopPropagation(); toggleFavorite(show); }}><Heart fill="currentColor" /></button></div><div className="show-card__info"><div><h3>{show.title}</h3><p>{show.year || "—"} · {show.genre} · {show.meta}</p></div><button><MoreHorizontal /></button></div>{show.progress > 0 && <div className="progress"><i style={{ width: `${show.progress}%` }} /></div>}</article>)}</div>
+        <div className="filter-row"><div className="genre-scroll">{genres.map((item) => <button key={item} className={genre === item ? "active" : ""} onClick={() => setGenre(item)}>{item}</button>)}</div><button className={`filter-button ${filtersOpen ? "active" : ""}`} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}><SlidersHorizontal />Фильтры</button></div>
+        {filtersOpen && <div className="filter-panel"><button className={`setting-row filter-toggle ${hideWatched ? "active" : ""}`} onClick={() => setHideWatched((value) => !value)}><span><strong>Скрыть просмотренное</strong><small>Оставить в выдаче только то, что еще не закончено.</small></span><i><b /></i></button><button className="filter-reset" onClick={resetFilters}>Сбросить фильтры</button></div>}
+        <div className={view === "grid" ? "library-grid" : "library-list"}>{filtered.map((show) => <article className="show-card" key={show.id} onClick={() => setActiveShow(show)}><div className="show-card__poster"><Poster show={show} />{show.rating && <span className="rating"><Star fill="currentColor" />{show.rating}</span>}<button className={`favorite ${show.favorite ? "active" : ""}`} onClick={(event) => { event.stopPropagation(); toggleFavorite(show); }}><Heart fill="currentColor" /></button></div><div className="show-card__info"><div><h3>{show.title}</h3><p>{show.year || "—"} · {show.genre} · {show.meta}</p></div></div>{show.progress > 0 && <div className="progress"><i style={{ width: `${show.progress}%` }} /></div>}</article>)}</div>
         {!filtered.length && <div className="empty"><Search /><h3>Ничего не найдено</h3><p>Попробуйте другой запрос или жанр.</p></div>}
       </section>
     </main>
