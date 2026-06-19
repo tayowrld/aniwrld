@@ -8,6 +8,9 @@ const CLIENT = "AniWRLD";
 const VERSION = "0.3.0";
 const DEVICE_ID = "aniwrld-server";
 const TICKS_PER_SECOND = 10_000_000;
+const VIDEO_ITEM_TYPES = ["Series", "Season", "Episode", "Movie"];
+const EXTERNAL_FETCHERS = ["TheMovieDb", "TMDb", "The Open Movie Database", "OMDb"];
+let externalMetadataDisabled = false;
 
 function baseUrl() {
   return (process.env.ANIWRLD_MEDIA_ENGINE_URL || getSetting("media_engine_url", "http://127.0.0.1:8096")).replace(/\/+$/, "");
@@ -108,6 +111,100 @@ function mapItem(item) {
   };
 }
 
+function disabledTypeOptions() {
+  return VIDEO_ITEM_TYPES.map((type) => ({
+    Type: type,
+    MetadataFetchers: [],
+    MetadataFetcherOrder: [],
+    ImageFetchers: [],
+    ImageFetcherOrder: [],
+  }));
+}
+
+function libraryOptions(path) {
+  return {
+    Enabled: true,
+    EnablePhotos: true,
+    EnableRealtimeMonitor: false,
+    EnableLUFSScan: false,
+    EnableChapterImageExtraction: false,
+    ExtractChapterImagesDuringLibraryScan: false,
+    EnableTrickplayImageExtraction: false,
+    ExtractTrickplayImagesDuringLibraryScan: false,
+    PathInfos: [{ Path: path }],
+    SaveLocalMetadata: false,
+    EnableInternetProviders: false,
+    EnableAutomaticSeriesGrouping: true,
+    EnableEmbeddedTitles: false,
+    EnableEmbeddedExtrasTitles: false,
+    EnableEmbeddedEpisodeInfos: false,
+    AutomaticRefreshIntervalDays: 0,
+    DisabledLocalMetadataReaders: [],
+    DisabledSubtitleFetchers: [],
+    SubtitleFetcherOrder: [],
+    DisabledMediaSegmentProviders: [],
+    MediaSegmentProviderOrder: [],
+    TypeOptions: disabledTypeOptions(),
+  };
+}
+
+function lockExternalProviders(config) {
+  const options = Array.isArray(config.MetadataOptions) ? config.MetadataOptions : [];
+  const existingTypes = new Set(options.map((entry) => entry.ItemType));
+  const nextOptions = options.map((entry) => VIDEO_ITEM_TYPES.includes(entry.ItemType) ? {
+    ...entry,
+    DisabledMetadataFetchers: [...new Set([...(entry.DisabledMetadataFetchers || []), ...EXTERNAL_FETCHERS])],
+    MetadataFetcherOrder: [],
+    DisabledImageFetchers: [...new Set([...(entry.DisabledImageFetchers || []), ...EXTERNAL_FETCHERS])],
+    ImageFetcherOrder: [],
+  } : entry);
+  for (const type of VIDEO_ITEM_TYPES) {
+    if (!existingTypes.has(type)) {
+      nextOptions.push({
+        ItemType: type,
+        DisabledMetadataSavers: [],
+        LocalMetadataReaderOrder: [],
+        DisabledMetadataFetchers: EXTERNAL_FETCHERS,
+        MetadataFetcherOrder: [],
+        DisabledImageFetchers: EXTERNAL_FETCHERS,
+        ImageFetcherOrder: [],
+      });
+    }
+  }
+  return { ...config, MetadataOptions: nextOptions };
+}
+
+async function disableExternalMetadataProviders() {
+  const config = await request("/System/Configuration");
+  await request("/System/Configuration", {
+    method: "POST",
+    body: JSON.stringify(lockExternalProviders(config)),
+  });
+}
+
+async function setLibraryOptions(folder, path) {
+  if (!folder?.ItemId) return;
+  try {
+    await request("/Library/VirtualFolders/LibraryOptions", {
+      method: "POST",
+      body: JSON.stringify({ Id: folder.ItemId, LibraryOptions: libraryOptions(path) }),
+    });
+  } catch (error) {
+    console.warn("Could not update media library options:", error.message);
+  }
+}
+
+async function ensureExternalMetadataDisabled() {
+  if (externalMetadataDisabled) return;
+  const path = getSetting("library_path", "");
+  if (!path || !getSetting("media_engine_token", "")) return;
+  await disableExternalMetadataProviders();
+  const folders = await request("/Library/VirtualFolders");
+  const folder = folders.find((entry) => entry.Locations?.includes(path) || entry.Name === "AniWRLD");
+  await setLibraryOptions(folder, path);
+  externalMetadataDisabled = true;
+}
+
 function libraryVisible(item) {
   if (item.Type !== "Series") return true;
   return Number(item.RecursiveItemCount || 0) > 0
@@ -157,15 +254,20 @@ export async function configureMediaOwner(username, libraryPath) {
     setSetting("media_engine_user_id", auth.User.Id);
     setSetting("media_engine_username", engineUsername);
     setSetting("library_path", path);
-    const folders = await request("/Library/VirtualFolders");
-    const exists = folders.some((folder) => folder.Locations?.includes(path));
-    if (!exists) {
+    await disableExternalMetadataProviders();
+    let folders = await request("/Library/VirtualFolders");
+    let folder = folders.find((entry) => entry.Locations?.includes(path));
+    if (!folder) {
       const query = new URLSearchParams({ name: "AniWRLD", collectionType: "tvshows", paths: path, refreshLibrary: "true" });
       await request(`/Library/VirtualFolders?${query}`, {
         method: "POST",
-        body: JSON.stringify({ LibraryOptions: {} }),
+        body: JSON.stringify({ LibraryOptions: libraryOptions(path) }),
       });
+      folders = await request("/Library/VirtualFolders");
+      folder = folders.find((entry) => entry.Locations?.includes(path));
     }
+    await setLibraryOptions(folder, path);
+    externalMetadataDisabled = true;
     await request("/Library/Refresh", { method: "POST" });
     setSetting("media_engine_status", "indexing");
     return mediaState();
@@ -183,6 +285,8 @@ function userId() {
 }
 
 export async function getLibrary() {
+  try { await ensureExternalMetadataDisabled(); }
+  catch (error) { console.warn("Could not lock media metadata providers:", error.message); }
   const query = new URLSearchParams({
     Recursive: "true", IncludeItemTypes: "Series,Movie",
     Fields: "Overview,Genres,CommunityRating,BackdropImageTags,RecursiveItemCount,OriginalTitle,UserData",
@@ -204,6 +308,8 @@ export async function favorite(id, value) {
 }
 
 export async function scan() {
+  try { await ensureExternalMetadataDisabled(); }
+  catch (error) { console.warn("Could not lock media metadata providers:", error.message); }
   setSetting("media_engine_status", "indexing");
   return request("/Library/Refresh", { method: "POST" });
 }
