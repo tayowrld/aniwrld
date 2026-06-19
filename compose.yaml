@@ -8,6 +8,7 @@ services:
       ANIWRLD_DB_PATH: /app/data/aniwrld.sqlite
       ANIWRLD_LIBRARY_PATH: /media
       ANIWRLD_MEDIA_ENGINE_URL: http://media-engine:8096
+      ANIWRLD_METADATA_PROVIDER: ${ANIWRLD_METADATA_PROVIDER:-jikan}
     volumes:
       - aniwrld-data:/app/data
       - type: bind

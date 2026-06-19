@@ -129,12 +129,13 @@ AniWRLD configures the media engine during owner setup, indexes the mounted medi
 
 ## Metadata
 
-AniWRLD does not rely on TMDB as a critical anime metadata source. Runtime metadata is enriched server-side through Shikimori and cached in SQLite for 30 days.
+AniWRLD does not rely on TMDB as a critical anime metadata source. Runtime metadata is enriched server-side through Jikan by default and cached in SQLite for 30 days.
 
 The metadata resolver:
 
 - cleans release/folder names before lookup;
-- queries Shikimori as the primary anime metadata provider;
+- queries Jikan as the default anime metadata provider;
+- can use Shikimori instead with `ANIWRLD_METADATA_PROVIDER=shikimori` when that API is reachable from your network;
 - stores normalized provider data in `metadata_cache`;
 - keeps Jellyfin as the playback/index engine, not the only metadata authority.
 
