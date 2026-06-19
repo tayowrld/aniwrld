@@ -222,7 +222,20 @@ async function getEpisodes(id) {
     IsMissing: "false",
     Fields: "Overview,Genres,CommunityRating,BackdropImageTags,SeriesInfo,UserData",
   });
-  return request(`/Shows/${id}/Episodes?${query}`);
+  const data = await request(`/Shows/${id}/Episodes?${query}`);
+  if (data.Items?.length) return data;
+  const fallback = new URLSearchParams({
+    Recursive: "true",
+    MediaTypes: "Video",
+    Fields: "Overview,Genres,CommunityRating,BackdropImageTags,SeriesInfo,UserData",
+  });
+  const videos = await request(`/Users/${userId()}/Items?${fallback}`);
+  return {
+    ...videos,
+    Items: videos.Items
+      .filter((item) => item.Type === "Episode" && item.SeriesId === id)
+      .sort((a, b) => (a.ParentIndexNumber || 0) - (b.ParentIndexNumber || 0) || (a.IndexNumber || 0) - (b.IndexNumber || 0)),
+  };
 }
 
 export async function getSeriesEpisodes(id) {
