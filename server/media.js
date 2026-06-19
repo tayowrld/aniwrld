@@ -108,6 +108,14 @@ function mapItem(item) {
   };
 }
 
+function libraryVisible(item) {
+  if (item.Type !== "Series") return true;
+  return Number(item.RecursiveItemCount || 0) > 0
+    || Boolean(item.Overview)
+    || Boolean(item.ProductionYear)
+    || Boolean(item.Genres?.length);
+}
+
 export function mediaState() {
   return {
     configured: Boolean(getSetting("library_path")) && Boolean(getSetting("media_engine_token")),
@@ -182,7 +190,7 @@ export async function getLibrary() {
   });
   const data = await request(`/Users/${userId()}/Items?${query}`);
   setSetting("media_engine_status", "ready");
-  return enrichItems(data.Items.map(mapItem));
+  return enrichItems(data.Items.filter(libraryVisible).map(mapItem));
 }
 
 export async function getResume() {
