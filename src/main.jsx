@@ -158,10 +158,10 @@ function DetailsModal({ show, onClose, onPlay, onToggleFavorite, busy }) {
   }, [show]);
 
   const seasons = useMemo(() => [...new Set(episodes.map((item) => item.seasonNumber).filter(Boolean))], [episodes]);
-  const visibleEpisodes = useMemo(
-    () => episodes.filter((item) => season === "all" || String(item.seasonNumber) === season),
-    [episodes, season],
-  );
+  const visibleEpisodes = useMemo(() => {
+    const filteredEpisodes = episodes.filter((item) => season === "all" || String(item.seasonNumber) === season);
+    return filteredEpisodes.length ? filteredEpisodes : episodes;
+  }, [episodes, season]);
   const primaryAction = episodes.find((item) => item.progress > 0) || episodes.find((item) => !item.played) || episodes[0] || show;
 
   return <div className="modal-backdrop" onClick={onClose}><div className="modal modal--details" onClick={(event) => event.stopPropagation()}>

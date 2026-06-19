@@ -3,6 +3,7 @@ import { db } from "./db.js";
 const SHIKIMORI = "shikimori";
 const CACHE_TTL = 1000 * 60 * 60 * 24 * 30;
 const BASE_URL = "https://shikimori.one";
+const MISSING_IMAGE = "/assets/globals/missing_";
 
 function cleanTitle(value = "") {
   return String(value)
@@ -12,6 +13,52 @@ function cleanTitle(value = "") {
     .replace(/[._-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function searchVariants(title) {
+  const clean = cleanTitle(title);
+  const variants = [
+    clean,
+    clean.replace(/\bseason\s*\d+\b/gi, " "),
+    clean.replace(/\b(s\d{1,2}e\d{1,3}|s\d{1,2})\b/gi, " "),
+    clean.replace(/[!！]+/g, " "),
+  ].map(cleanTitle).filter(Boolean);
+  return [...new Set(variants)];
+}
+
+function comparable(value = "") {
+  return cleanTitle(value)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function titleScore(query, entry) {
+  const needle = comparable(query);
+  const names = [entry.name, entry.russian, ...(entry.english || []), ...(entry.synonyms || [])]
+    .filter(Boolean)
+    .map(comparable);
+  let best = 0;
+  for (const name of names) {
+    if (!needle || !name) continue;
+    if (needle === name) best = Math.max(best, 1);
+    if (needle.includes(name) || name.includes(needle)) {
+      best = Math.max(best, Math.min(needle.length, name.length) / Math.max(needle.length, name.length));
+    }
+    const needleTokens = new Set(needle.split(" ").filter((token) => token.length > 1));
+    const nameTokens = new Set(name.split(" ").filter((token) => token.length > 1));
+    const overlap = [...needleTokens].filter((token) => nameTokens.has(token)).length;
+    if (needleTokens.size && nameTokens.size) best = Math.max(best, overlap / Math.max(needleTokens.size, nameTokens.size));
+  }
+  return best;
+}
+
+function bestCandidate(query, entries) {
+  return entries
+    .map((entry) => ({ entry, score: titleScore(query, entry) }))
+    .sort((a, b) => b.score - a.score || Number(b.entry.score || 0) - Number(a.entry.score || 0))[0];
 }
 
 function cacheGet(provider, key) {
@@ -33,6 +80,7 @@ function normalizeShikimori(entry) {
   if (!entry) return null;
   const image = entry.image?.original || entry.image?.preview || entry.image?.x96 || "";
   const screenshot = entry.screenshots?.[0]?.original || entry.screenshots?.[0]?.preview || "";
+  const poster = image && !image.startsWith(MISSING_IMAGE) ? `${BASE_URL}${image}` : "";
   return {
     provider: SHIKIMORI,
     providerId: entry.id,
@@ -47,7 +95,7 @@ function normalizeShikimori(entry) {
     airedOn: entry.aired_on || "",
     releasedOn: entry.released_on || "",
     description: stripHtml(entry.description || entry.description_html || ""),
-    poster: image ? `${BASE_URL}${image}` : "",
+    poster,
     backdrop: screenshot ? `${BASE_URL}${screenshot}` : "",
     url: entry.url ? `${BASE_URL}${entry.url}` : "",
   };
@@ -69,18 +117,35 @@ async function searchShikimori(title) {
   if (cached) return cached;
 
   try {
-    const url = new URL("/api/animes", BASE_URL);
-    url.searchParams.set("search", key);
-    url.searchParams.set("limit", "1");
-    url.searchParams.set("order", "popularity");
-    const response = await fetch(url, {
-      headers: {
-        "Accept": "application/json",
-        "User-Agent": "AniWRLD metadata resolver",
-      },
-    });
-    if (!response.ok) return null;
-    const [entry] = await response.json();
+    let picked = null;
+    for (const variant of searchVariants(title)) {
+      const url = new URL("/api/animes", BASE_URL);
+      url.searchParams.set("search", variant);
+      url.searchParams.set("limit", "8");
+      url.searchParams.set("order", "popularity");
+      const response = await fetch(url, {
+        headers: {
+          "Accept": "application/json",
+          "User-Agent": "AniWRLD metadata resolver",
+        },
+      });
+      if (!response.ok) {
+        console.warn(`Shikimori metadata search failed for "${variant}": HTTP ${response.status}`);
+        continue;
+      }
+      const entries = await response.json();
+      const candidate = bestCandidate(variant, entries);
+      if (candidate?.entry && candidate.score >= 0.55) {
+        picked = candidate;
+        console.info(`Shikimori metadata matched "${title}" as "${candidate.entry.name}" (#${candidate.entry.id}, score ${candidate.score.toFixed(2)})`);
+        break;
+      }
+    }
+    if (!picked?.entry) {
+      console.warn(`Shikimori metadata not found for "${title}"`);
+      return null;
+    }
+    const entry = picked.entry;
     let metadata = normalizeShikimori(entry);
     if (metadata?.providerId) {
       const details = await fetch(`${BASE_URL}/api/animes/${metadata.providerId}`, {
@@ -93,7 +158,8 @@ async function searchShikimori(title) {
     }
     if (metadata) cacheSet(SHIKIMORI, key, metadata);
     return metadata;
-  } catch {
+  } catch (error) {
+    console.warn(`Shikimori metadata lookup failed for "${title}": ${error.message}`);
     return null;
   }
 }
